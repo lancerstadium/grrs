@@ -171,6 +171,8 @@ git push -u origin main
 
 # 5 参考文章
 
-- [Rust crates 国内镜像源加速配置](https://zhuanlan.zhihu.com/p/126204128)
+- [Rust构建命令行](https://rust-cli.github.io/book/tutorial/cli-args.html)
+- [Rust crates国内镜像源加速配置](https://zhuanlan.zhihu.com/p/126204128)
 - [Vscode扩展crates挂了](https://rustcc.cn/article?id=c177b1fc-cc68-43de-9587-ddd199ed8169)
-- [Rust 条件编译 feature](https://course.rs/cargo/reference/features/intro.html)
+- [Rust语言圣经-条件编译feature](https://course.rs/cargo/reference/features/intro.html)
+- [Pigcha-Linux CLI使用](http://202.81.231.183:8081/misc/linux_tutorial)
