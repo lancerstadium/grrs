@@ -1,0 +1,15 @@
+/root/rsiterm/grrs/target/debug/deps/heck-1658eeab85cd3e25.rmeta: /root/.cargo/registry/src/rsproxy.cn-0dccff568467c15b/heck-0.4.1/src/lib.rs /root/.cargo/registry/src/rsproxy.cn-0dccff568467c15b/heck-0.4.1/src/kebab.rs /root/.cargo/registry/src/rsproxy.cn-0dccff568467c15b/heck-0.4.1/src/lower_camel.rs /root/.cargo/registry/src/rsproxy.cn-0dccff568467c15b/heck-0.4.1/src/shouty_kebab.rs /root/.cargo/registry/src/rsproxy.cn-0dccff568467c15b/heck-0.4.1/src/shouty_snake.rs /root/.cargo/registry/src/rsproxy.cn-0dccff568467c15b/heck-0.4.1/src/snake.rs /root/.cargo/registry/src/rsproxy.cn-0dccff568467c15b/heck-0.4.1/src/title.rs /root/.cargo/registry/src/rsproxy.cn-0dccff568467c15b/heck-0.4.1/src/train.rs /root/.cargo/registry/src/rsproxy.cn-0dccff568467c15b/heck-0.4.1/src/upper_camel.rs
+
+/root/rsiterm/grrs/target/debug/deps/libheck-1658eeab85cd3e25.rlib: /root/.cargo/registry/src/rsproxy.cn-0dccff568467c15b/heck-0.4.1/src/lib.rs /root/.cargo/registry/src/rsproxy.cn-0dccff568467c15b/heck-0.4.1/src/kebab.rs /root/.cargo/registry/src/rsproxy.cn-0dccff568467c15b/heck-0.4.1/src/lower_camel.rs /root/.cargo/registry/src/rsproxy.cn-0dccff568467c15b/heck-0.4.1/src/shouty_kebab.rs /root/.cargo/registry/src/rsproxy.cn-0dccff568467c15b/heck-0.4.1/src/shouty_snake.rs /root/.cargo/registry/src/rsproxy.cn-0dccff568467c15b/heck-0.4.1/src/snake.rs /root/.cargo/registry/src/rsproxy.cn-0dccff568467c15b/heck-0.4.1/src/title.rs /root/.cargo/registry/src/rsproxy.cn-0dccff568467c15b/heck-0.4.1/src/train.rs /root/.cargo/registry/src/rsproxy.cn-0dccff568467c15b/heck-0.4.1/src/upper_camel.rs
+
+/root/rsiterm/grrs/target/debug/deps/heck-1658eeab85cd3e25.d: /root/.cargo/registry/src/rsproxy.cn-0dccff568467c15b/heck-0.4.1/src/lib.rs /root/.cargo/registry/src/rsproxy.cn-0dccff568467c15b/heck-0.4.1/src/kebab.rs /root/.cargo/registry/src/rsproxy.cn-0dccff568467c15b/heck-0.4.1/src/lower_camel.rs /root/.cargo/registry/src/rsproxy.cn-0dccff568467c15b/heck-0.4.1/src/shouty_kebab.rs /root/.cargo/registry/src/rsproxy.cn-0dccff568467c15b/heck-0.4.1/src/shouty_snake.rs /root/.cargo/registry/src/rsproxy.cn-0dccff568467c15b/heck-0.4.1/src/snake.rs /root/.cargo/registry/src/rsproxy.cn-0dccff568467c15b/heck-0.4.1/src/title.rs /root/.cargo/registry/src/rsproxy.cn-0dccff568467c15b/heck-0.4.1/src/train.rs /root/.cargo/registry/src/rsproxy.cn-0dccff568467c15b/heck-0.4.1/src/upper_camel.rs
+
+/root/.cargo/registry/src/rsproxy.cn-0dccff568467c15b/heck-0.4.1/src/lib.rs:
+/root/.cargo/registry/src/rsproxy.cn-0dccff568467c15b/heck-0.4.1/src/kebab.rs:
+/root/.cargo/registry/src/rsproxy.cn-0dccff568467c15b/heck-0.4.1/src/lower_camel.rs:
+/root/.cargo/registry/src/rsproxy.cn-0dccff568467c15b/heck-0.4.1/src/shouty_kebab.rs:
+/root/.cargo/registry/src/rsproxy.cn-0dccff568467c15b/heck-0.4.1/src/shouty_snake.rs:
+/root/.cargo/registry/src/rsproxy.cn-0dccff568467c15b/heck-0.4.1/src/snake.rs:
+/root/.cargo/registry/src/rsproxy.cn-0dccff568467c15b/heck-0.4.1/src/title.rs:
+/root/.cargo/registry/src/rsproxy.cn-0dccff568467c15b/heck-0.4.1/src/train.rs:
+/root/.cargo/registry/src/rsproxy.cn-0dccff568467c15b/heck-0.4.1/src/upper_camel.rs:
