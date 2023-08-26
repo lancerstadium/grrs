@@ -1,1 +1,1 @@
-/root/rsiterm/grrs/target/debug/grrs: /root/rsiterm/grrs/src/main.rs
+/Users/lutianshuo/Documents/iterms/grrs/target/debug/grrs: /Users/lutianshuo/Documents/iterms/grrs/src/main.rs

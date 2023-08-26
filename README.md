@@ -17,6 +17,12 @@ grrs foobar test.txt
 
 # 2 使用 Rust 构建
 
+- rust安装：
+
+```
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
 - 从`cargo`开始：
 
 ```
@@ -91,6 +97,147 @@ clap = {  version = "4.0", features = ["derive"] }
 flate2 = { version = "1.0.3", default-features = false, features = ["zlib"] }
 ```
 
+- 现在我们可以在代码中编写`use clap::Parser;`，修改如下：
+
+```rust
+use clap::Parser;
+
+// 在文件中搜索模式并显示包含该模式的行。
+#[derive(Parser)]
+struct Cli {
+    pattern: String,            // 要查找的字符串
+    path: std::path::PathBuf,   // 要查看的文件
+}
+```
+
+> 注意：
+> 将自定义属性添加到字段中，如：
+> 想将此字段用于-o或--output之后的参数
+> 可以添加 `#[arg(short = 'o', long = "output")]`
+
+- 在`main()`中解析参数：
+
+```rust
+fn main() {
+    let args = Cli::parse(); // 自动解析参数到 Cli
+}
+```
+
+- 运行测试`cargo run`、`cargo run -- some-pattern some-file`
+
+
+## 2.4 文件读入
+
+- 从打开我们收到的文件开始：
+
+```rust
+    // 读取文件
+    let content = std::fs::read_to_string(&args.path).expect("Could not read file!");
+```
+
+- 迭代文件每一行，循环打印：
+
+```rust
+    // 打印文件每一行
+    for line in content.lines() {
+        if line.contains(&args.pattern) {
+            println!("{}", line);
+        }
+    }
+```
+
+- 现在代码就像；
+
+```rust
+#![allow(unused)]
+use clap::Parser;
+
+// 在文件中搜索字符串并显示包含该字符串的行
+#[derive(Parser)]
+struct Cli {
+    pattern: String,            // 要查找的字符串
+    path: std::path::PathBuf,   // 要查看的文件
+}
+
+fn main() {
+    // 自动解析参数到 Cli
+    let args = Cli::parse(); 
+    // 读取文件
+    let content = std::fs::read_to_string(&args.path).expect("Could not read file!");
+    // 打印文件每一行
+    for line in content.lines() {
+        if line.contains(&args.pattern) {
+            println!("{}", line);
+        }
+    }
+}
+```
+
+- 尝试`cargo run -- main src/main.rs`，现在它可以成功查找文件中的第一个匹配字符串。
+
+> 注意：
+> 这不是最好的实现
+> 它将整个文件读入内存
+> 找到一种优化方法
+> 一个想法是使用`aBufReader`替代`read_to_string`
+
+
+## 2.5 错误处理
+
+- 如果`read_to_string`返回错误类型`std::io::Error`，需要进行处理：
+
+```rust
+    let result = std::fs::read_to_string("test.txt");
+    match result {  // 错误处理：没找到文件则报错
+        Ok(content) => { println!("File content: {}", content); }
+        Err(error) => { println!("Oh noes: {}", error); }
+    }
+```
+
+- 取用`content`：
+
+```rust
+    let result = std::fs::read_to_string("test.txt");
+    let content = match result {  
+        // 错误处理：没找到文件则报错
+        Ok(content) => { content },
+        Err(error) => { panic!("Can't deal with {}, just exit here", error); }
+    };
+    println!("file content: {}", content);
+```
+
+- 不使用`panic!`，返回类型为`Result!`：
+
+```rust
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let result = std::fs::read_to_string("test.txt");
+    let content = match result {
+        Ok(content) => { content },
+        Err(error) => { return Err(error.into()); }
+    };
+    println!("file content: {}", content);
+    Ok(())
+}
+```
+
+- 使用`?`，Rust将在内部将此扩展为与我们刚刚编写的`match`非常相似的东西，十分简洁：
+
+```rust
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let content = std::fs::read_to_string("test.txt")?;
+    println!("file content: {}", content);
+    Ok(())
+}
+```
+
+> 注意：
+> `main`函数中的错误类型是`Box<dyn std::error::Error>`
+> 但我们在上面看到，`read_to_string`返回`std::io::Error`
+> 这是因为`?`拓展到转换错误类型的代码
+> `Box<dyn std::error::Error>`是一个可以包含任何类型
+> 实现标准`Error trait`的`Box`
+> 意味着基本上所有错误都可以放入这个`Box`里
+
 
 ---
 
@@ -150,6 +297,8 @@ git-fetch-with-cli = true
 ```
 ## 3.3 vscode 中修改 rust-crates 拓展
 - 将 `https://api.crates-vsc.space` 改成 `https://index.crates.io`
+
+
 
 ---
 
