@@ -1,6 +1,8 @@
 # 1 grrs 命令行工具
 
-- CLI工具典型调用方式如下：
+- 在本项目中，我们将设计一个 CLI 工具`grrs`，其主要可以进行文件内部文本的搜索（类似于`grep`）。
+
+- CLI 工具典型调用方式如下：
 
 ```
 grrs foobar test.txt
@@ -236,7 +238,110 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 > 这是因为`?`拓展到转换错误类型的代码
 > `Box<dyn std::error::Error>`是一个可以包含任何类型
 > 实现标准`Error trait`的`Box`
-> 意味着基本上所有错误都可以放入这个`Box`里
+> 意味着基本上所有错误都可以放入这个`Box`里。
+
+- 提供错误内容，例如，可以创建自己的错误类型，然后使用它来构建自定义错误消息：
+
+```rust
+#[derive(Debug)]
+struct CustomError(String);
+
+fn main() -> Result<(), CustomError> {
+    let path = "test.txt";
+    let content = std::fs::read_to_string(path)
+        .map_err(|err| CustomError(format!("Error reading `{}`: {}", path, err)))?;
+    println!("file content: {}", content);
+    Ok(())
+}
+```
+
+- 其有一个问题：不存储原始错误，只存储其字符串表示。`anyhow`库有一个解决方案：与`CustomError`类似，其`Context`特征用于添加描述并保留原始错误信息。将`anyhow = "1.0.75"`加入`Cargo.toml`，在`src/main.rs`中使用：
+
+```rust
+#![allow(unused)]
+use clap::Parser;
+use anyhow::{Context, Result};
+
+// 在文件中搜索字符串并显示包含该字符串的行
+#[derive(Parser)]
+struct Cli {
+    pattern: String,            // 要查找的字符串
+    path: std::path::PathBuf,   // 要查看的文件
+}
+
+fn main() -> Result<()>{
+    // 自动解析参数到 Cli
+    let args = Cli::parse(); 
+    // 读取文件
+    let content = std::fs::read_to_string(&args.path).with_context(|| format!("could not read fine `{}`!", args.path.to_string_lossy()))?;
+    // 打印文件中含有目标值的每一行
+    for line in content.lines() {
+        if line.contains(&args.pattern) {
+            println!("{}", line);
+        }
+    }
+    Ok(())
+}
+
+```
+
+## 2.6 信息输出
+
+- 打印错误应通过`stderr`完成：
+
+```rust
+eprintln!("This is an error! :(");
+```
+
+- `stdout`获得锁定并使用`writeln!`直接打印它。
+
+```rust
+use std::io::{self, Write};
+
+let stdout = io::stdout(); // get the global stdout entity
+let mut handle = stdout.lock(); // acquire a lock on it
+writeln!(handle, "foo: {}", 42); // add `?` if you care about errors here
+```
+
+- 显示进度条：一些CLI应用程序运行不到一秒钟，另一些则需要几分钟或几个小时。尝试打印易于使用的状态更新。
+
+```rust
+fn main() {
+    let pb = indicatif::ProgressBar::new(100);
+    for i in 0..100 {
+        do_hard_work();
+        pb.println(format!("[+] finished #{}", i));
+        pb.inc(1);
+    }
+    pb.finish_with_message("done");
+}
+
+```
+
+- 记录（Record）：添加一些日志语句：错误、警告、信息、调试和跟踪（错误的优先级最高，跟踪最低）。
+- 需要准备：
+  - 日志箱（Log Box）：包含以日志级别命名的宏
+  - 适配器（Adapters）：实际将日志输出写入有用位置，不仅可以使用它们将日志写入终端，还可以写入syslog或中央日志服务器。
+
+- 使用 `isenv_logger` 的简单适配器：被称为“env”记录器，您可以使用环境变量来指定要记录应用程序的哪些部分（以及要在哪个级别记录它们）。由于库也可以使用log，因此也可以轻松配置其日志输出：
+
+```rust
+use log::{info, warn};
+
+fn main() {
+    env_logger::init();
+    info!("starting up");
+    warn!("oops, nothing implemented!");
+}
+
+```
+
+- 假设此文件为`src/bin/output-log.rs`，在`Linux`和`macOS`上，您可以像这样运行它：
+```shell
+env RUST_LOG=info cargo run --bin output-log
+```
+
+- `RUST_LOG`是可用于设置日志设置的环境变量的名称，`env_logger`还包含一个构建器，因此可以以编程方式调整这些设置。
 
 
 ---
