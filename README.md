@@ -47,6 +47,35 @@ let pattern = args().nth(1).expect("no pattern given");
 let path = args().nth(2).expect("no path given");
 ```
 
+- 或者这样引入`env`这位大哥，毕竟人家要出场多次的：
+
+```rust
+use std::env;
+let args: Vec<String> = env::args().collect();
+dbg!(args);
+```
+
+> 注意⚠️：
+> 所有的用户输入都不可信！不可信！不可信！
+> 原因是当传入的命令行参数包含非 `Unicode` 字符时
+> `std::env::args` 会直接崩溃
+> 建议大家使用`std::env::args_os`
+> 该方法产生的数组将包含 `OsString` 类型
+> 而不是之前的 `String` 类型
+> 但是咱们不用
+
+- `collect`并不是`env`包提供的，而是迭代器自带的方法。
+
+- 存储参数：
+
+```rust
+use std::env;
+let args: Vec<String> = env::args().collect();
+
+let query = &args[1];
+let file_path = &args[2];
+```
+
 ## 2.2 给参数赋予数据类型
 
 - CLI 的参数通常可以自定义其数据类型，例如 `grrs foobar test.txt` 中，`foobar` 是要查找的字符串，`test.txt` 是要查看的文件，在`src/main.rs`中编写：
@@ -346,9 +375,22 @@ env RUST_LOG=info cargo run --bin output-log
 
 ---
 
-# 3 Crates 国内镜像源加速
+# 3 改进工程
 
-## 3.1 手动设置镜像
+## 3.1 增加模块化和错误处理
+
+- 但凡稍微没那么糟糕的程序，都应该具有代码模块化和错误处理，不然连玩具都谈不上。梳理代码后，可以整理出如下四个改进点：
+  1. **单一庞大的函数**。对于`grrs`而言，`main`函数执行两个任务：解析命令行参数和读取文件。但随着代码增加，其承载的功能也将快速增加。从工程角度来看，一个函数尽量才分出更小的功能单元，便于阅读和维护。
+  2. **配置变量散乱**。当前`main`函数中的变量独立存在，可能被整个程序访问。我们可以将其整合进结构体中。
+  3. **细化错误提示**。
+
+
+
+---
+
+# 4 Crates 国内镜像源加速
+
+## 4.1 手动设置镜像
 - 拉取 crates.io 仓库代码尤其慢，很多次超时导致引用库没法编译。
 - [USTC 源官方教程](https://mirrors.ustc.edu.cn/help/crates.io-index.html)
 
@@ -373,7 +415,7 @@ registry = "https://mirrors.tuna.tsinghua.edu.cn/git/crates.io-index.git"
 git-fetch-with-cli = true
 ```
 
-## 3.2 使用 RsProxy 镜像
+## 4.2 使用 RsProxy 镜像
 - [RsProxy 官方教程](http://rsproxy.cn/)
 
 1. 设置 Rustup 镜像， 修改配置 `~/.zshrc` or `~/.bashrc` ；
@@ -400,14 +442,14 @@ index = "https://rsproxy.cn/crates.io-index"
 [net]
 git-fetch-with-cli = true
 ```
-## 3.3 vscode 中修改 rust-crates 拓展
+## 4.3 vscode 中修改 rust-crates 拓展
 - 将 `https://api.crates-vsc.space` 改成 `https://index.crates.io`
 
 
 
 ---
 
-# 4 Git
+# 5 Git
 
 - 项目上传：
 
@@ -423,7 +465,7 @@ git push -u origin main
 
 ---
 
-# 5 参考文章
+# 6 参考文章
 
 - [Rust构建命令行](https://rust-cli.github.io/book/tutorial/cli-args.html)
 - [Rust crates国内镜像源加速配置](https://zhuanlan.zhihu.com/p/126204128)
