@@ -34,6 +34,7 @@ cargo run           # 运行项目
 
 - `Cargo.toml`：包含我们项目的元数据的文件， 包括我们使用的依赖项/外部库的列表。
 - `src/main.rs`：一个文件，它是我们的（主）二进制文件的入口点。
+- `target/debug/`：生成可执行程序会在该目录下。
 
 
 ## 2.1 获取参数
@@ -70,13 +71,424 @@ dbg!(args);
 
 ```rust
 use std::env;
-let args: Vec<String> = env::args().collect();
 
-let query = &args[1];
-let file_path = &args[2];
+fn main() {
+    let args: Vec<String> = env::args().collect();
+
+    let query = &args[1];
+    let file_path = &args[2];
+
+    println!("Searching for {}", query);
+    println!("In file {}", file_path);
+}
 ```
 
-## 2.2 给参数赋予数据类型
+## 2.2 文件读取
+
+- 首先，通过 `use std::fs` 引入文件操作包，然后通过 `fs::read_to_string` 读取指定的文件内容：
+
+```rust
+use std::env;
+use std::fs;
+
+fn main() {
+    // --省略之前的内容--
+    println!("In file {}", file_path);
+
+    let contents = fs::read_to_string(file_path)
+        .expect("Should have been able to read the file");
+
+    println!("With text:\n{contents}");
+}
+```
+
+## 2.3 准备测试文件
+
+- 准备`poem.txt`放入项目主目录下，与`src/`并列：
+
+```txt
+I'm nobody! Who are you?
+Are you nobody, too?
+Then there's a pair of us - don't tell!
+They'd banish us, you know.
+
+How dreary to be somebody!
+How public, like a frog
+To tell your name the livelong day
+To an admiring bog!
+```
+
+- 测试命令：
+
+```shell
+cargo run -- the poem.txt
+```
+
+---
+
+# 3 改进工程
+
+## 3.1 增加模块化和错误处理
+
+- 但凡稍微没那么糟糕的程序，都应该具有代码模块化和错误处理，不然连玩具都谈不上。梳理代码后，可以整理出如下四个改进点：
+  1. **单一庞大的函数**。对于`grrs`而言，`main`函数执行两个任务：解析命令行参数和读取文件。但随着代码增加，其承载的功能也将快速增加。从工程角度来看，一个函数尽量才分出更小的功能单元，便于阅读和维护。
+  2. **配置变量散乱**。当前`main`函数中的变量独立存在，可能被整个程序访问。我们可以将其整合进结构体中。
+  3. **细化错误提示**。文件不存在、无权限等等都是可能的错误，一条大一统的消息无法给予用户更多的提示。
+  4. 使用错误而非异常。如用户不给任何命令行参数，那我们的程序显然会无情崩溃，原因很简单：`index out of bounds`，一个数组访问越界的 `panic`。但问题来了，用户能看懂吗？因此需要增加合适的错误处理代码，来给予使用者给详细友善的提示。还有就是需要在一个统一的位置来处理所有错误，利人利己！
+
+
+### 3.1.1 分离`main`函数
+
+- Rust 社区给出了统一的处理`main`函数指导方案，这个方案叫做关注点分离（Separation of Concerns）：
+  - 将程序分割为`main.rs`和`lib.rs`，并将程序的逻辑代码移动到后者内；
+  - 从测试的角度而言，这种分离也非常合理： `lib.rs` 中的主体逻辑代码可以得到简单且充分的测试，至于 `main.rs` ？确实没办法针对其编写额外的测试代码，但是它的代码也很少啊，很容易就能保证它的正确性。
+  - 命令行解析属于基本功能，不能属于逻辑代码的一部分。
+
+- 梳理后`main`函数中应该包含的功能为：
+  - 解析命令行参数
+  - 初始化其他配置
+  - 调用`lib.rs`中的`run`函数，来启动逻辑代码的运行
+  - 如果`run`返回一个错误，则需要对该错误进行处理
+
+
+- 接下来分离命令行解析。根据之前的分析，我们需要将命令行解析的代码分离到一个单独的函数，然后将该函数放置在`main.rs`中：
+
+```rust
+fn main() {
+    let args: Vec<String> = env::args().collect();
+    let (query, file_path) = parse_config(&args);
+
+    // --省略--
+}
+
+fn parse_config(args: &[String]) -> (&str, &str) {
+    let query = &args[1];
+    let file_path = &args[2];
+
+    (query, file_path)
+}
+```
+
+- 经过分离后，之前的设计目标完美达成，即精简了 `main` 函数，又将配置相关的代码放在了 `main.rs` 文件里。
+- 看起来貌似是杀鸡用了牛刀，但是重构就是这样，一步一步，踏踏实实的前行。
+
+### 3.1.2 聚合配置变量
+
+- 前文提到，配置变量并不适合分散的到处都是，因此使用一个结构体来统一存放是非常好的选择，这样修改后，后续的使用以及未来的代码维护都将更加简单明了。
+
+```rust
+fn main() {
+    let args: Vec<String> = env::args().collect();
+
+    let config = parse_config(&args);
+
+    println!("Searching for {}", config.query);
+    println!("In file {}", config.file_path);
+
+    let contents = fs::read_to_string(config.file_path)
+        .expect("Should have been able to read the file");
+
+    // --snip--
+}
+
+struct Config {
+    query: String,
+    file_path: String,
+}
+
+fn parse_config(args: &[String]) -> Config {
+    let query = args[1].clone();
+    let file_path = args[2].clone();
+
+    Config { query, file_path }
+}
+
+```
+
+- 值得注意的是，`Config` 中存储的并不是 `&str` 这样的引用类型，而是一个 `String` 字符串，也就是 `Config` 并没有去借用外部的字符串，而是拥有内部字符串的所有权。`clone` 方法的使用也可以佐证这一点。
+
+> clone 的得与失：
+> 
+> 在上面的代码中，除了使用 clone ，还有其它办法来达成同样的目的，但 clone 无疑是最简单的方法：直接完整的复制目标数据，无需被所有权、借用等问题所困扰，但是它也有其缺点，那就是有一定的性能损耗。
+>
+> 因此是否使用 clone 更多是一种性能上的权衡，对于上面的使用而言，由于是配置的初始化，因此整个程序只需要执行一次，性能损耗几乎是可以忽略不计的。
+>
+> 总之，判断是否使用 clone：
+>
+> - 是否严肃的项目，玩具项目直接用 clone 就行，简单不好吗？
+> - 要看所在的代码路径是否是热点路径(hot path)，例如执行次数较多的显然就是热点路径，热点路径就值得去使用性能更好的实现方式。
+
+
+- 继续优化，通过构造函数来初始化一个 `Config` 实例，而不是直接通过函数返回实例：
+
+```rust
+fn main() {
+    let args: Vec<String> = env::args().collect();
+
+    let config = Config::new(&args);
+
+    // --snip--
+}
+
+// --snip--
+
+impl Config {
+    fn new(args: &[String]) -> Config {
+        let query = args[1].clone();
+        let file_path = args[2].clone();
+
+        Config { query, file_path }
+    }
+}
+```
+
+- 修改后，类似 `String::new` 的调用，我们可以通过 `Config::new` 来创建一个实例。
+
+
+### 3.1.3 改进错误处理
+
+#### a 主动 panic
+- `panic` 的两种用法: 被动触发和主动调用。上面代码的方式很明显是被动触发，这种报错信息是不可控的，下面我们先改成主动调用的方式：
+
+```rust
+// in main.rs
+ // --snip--
+    fn new(args: &[String]) -> Config {
+        if args.len() < 3 {
+            panic!("not enough arguments");
+        }
+        // --snip--
+```
+
+- 不错，用户看到了更为明确的提示，但是还是有一大堆 debug 输出，这些我们其实是不想让用户看到的。这么看来，想要输出对用户友好的信息, `panic` 是不太适合的，它更适合告知开发者，哪里出现了问题。
+
+
+#### b 返回 Result 替代 panic
+- 那只能祭出之前学过的错误处理大法了，也就是返回一个 `Result`：成功时包含 `Config` 实例，失败时包含一条错误信息。
+- 有一点需要额外注意下，从代码惯例的角度出发，`new` 往往不会失败，毕竟新建一个实例没道理失败，对不？因此修改为 `build` 会更加合适：
+
+```rust
+impl Config {
+    fn build(args: &[String]) -> Result<Config, &'static str> {
+        if args.len() < 3 {
+            return Err("not enough arguments");
+        }
+
+        let query = args[1].clone();
+        let file_path = args[2].clone();
+
+        Ok(Config { query, file_path })
+    }
+}
+
+```
+
+- 这里的 `Result` 可能包含一个 `Config` 实例，也可能包含一条错误信息 `&static str`，不熟悉这种字符串类型的同学可以回头看看字符串章节，代码中的字符串字面量都是该类型，且拥有 `'static` 生命周期。
+
+#### c 处理返回的 Result
+- 接下来就是在调用 `build` 函数时，对返回的 `Result` 进行处理了，目的就是给出准确且友好的报错提示, 为了让大家更好的回顾我们修改过的内容，这里给出整体代码：
+```rust
+use std::env;
+use std::fs;
+use std::process;
+
+fn main() {
+    let args: Vec<String> = env::args().collect();
+
+    // 对 build 返回的 `Result` 进行处理
+    let config = Config::build(&args).unwrap_or_else(|err| {
+        println!("Problem parsing arguments: {err}");
+        process::exit(1);
+    });
+
+
+    println!("Searching for {}", config.query);
+    println!("In file {}", config.file_path);
+
+    let contents = fs::read_to_string(config.file_path)
+        .expect("Should have been able to read the file");
+
+    println!("With text:\n{contents}");
+}
+
+struct Config {
+    query: String,
+    file_path: String,
+}
+
+impl Config {
+    fn build(args: &[String]) -> Result<Config, &'static str> {
+        if args.len() < 3 {
+            return Err("not enough arguments");
+        }
+
+        let query = args[1].clone();
+        let file_path = args[2].clone();
+
+        Ok(Config { query, file_path })
+    }
+}
+```
+
+- 上面代码有几点值得注意：
+  - 当 `Result` 包含错误时，我们不再调用 `panic` 让程序崩溃，而是通过 `process::exit(1)` 来终结进程，其中 1 是一个信号值(事实上非 0 值都可以)，通知调用我们程序的进程，程序是因为错误而退出的。
+  - `unwrap_or_else` 是定义在 `Result<T,E>` 上的常用方法，如果 `Result` 是 `Ok`，那该方法就类似 `unwrap`：返回 `Ok` 内部的值；如果是 `Err`，就调用闭包中的自定义代码对错误进行进一步处理。
+
+> 综上可知，`config` 变量的值是一个 `Config` 实例，而 `unwrap_or_else` 闭包中的 `err` 参数，它的类型是 `'static str`，值是 `"not enough arguments"` 那个字符串字面量。
+
+### 3.1.4 分离主体逻辑
+
+- 接下来可以继续精简 `main` 函数，那就是将主体逻辑( 例如业务逻辑 )从 `main` 中分离出去，这样 `main` 函数就保留主流程调用，非常简洁。
+
+```rust 
+// in main.rs
+fn main() {
+    let args: Vec<String> = env::args().collect();
+
+    let config = Config::build(&args).unwrap_or_else(|err| {
+        println!("Problem parsing arguments: {err}");
+        process::exit(1);
+    });
+
+    println!("Searching for {}", config.query);
+    println!("In file {}", config.file_path);
+
+    run(config);
+}
+
+fn run(config: Config) {
+    let contents = fs::read_to_string(config.file_path)
+        .expect("Should have been able to read the file");
+
+    println!("With text:\n{contents}");
+}
+
+// --snip--
+```
+
+> 如上所示，`main` 函数仅保留主流程各个环节的调用，一眼看过去非常简洁清晰。
+
+
+### 3.1.5 使用 ? 和特征对象返回错误
+
+- 我们发现：`run` 函数没有错误处理，错误处理最好统一在一个地方完成，这样极其有利于后续的代码维护。
+
+```rust
+//in main.rs
+use std::error::Error;
+
+// --snip--
+
+fn run(config: Config) -> Result<(), Box<dyn Error>> {
+    let contents = fs::read_to_string(config.file_path)?;
+
+    println!("With text:\n{contents}");
+
+    Ok(())
+}
+```
+
+> 值得注意的是这里的 `Result<(), Box<dyn Error>>` 返回类型，首先我们的程序无需返回任何值，但是为了满足 `Result<T,E>` 的要求，因此使用了 `Ok(())` 返回一个单元类型 `()`。
+>
+> 最重要的是 `Box<dyn Error>`， 如果按照顺序学到这里，大家应该知道这是一个 `Error` 的特征对象：它表示函数返回一个类型，该类型实现了 `Error` 特征，这样我们就无需指定具体的错误类型，否则你还需要查看 `fs::read_to_string` 返回的错误类型。
+>
+> 简单来说，`fs::read_to_string`被强转为了`Box<dyn Error>`，用就是了。
+
+- 先回忆下在 `build` 函数调用时，我们怎么处理错误的？然后与这里的方式做一下对比，没错 `if let` 的使用让代码变得更简洁，可读性也更加好，原因是，我们并不关注 `run` 返回的 `Ok` 值，因此只需要用 `if let` 去匹配是否存在错误即可：
+
+```rust
+fn main() {
+    // --snip--
+
+    println!("Searching for {}", config.query);
+    println!("In file {}", config.file_path);
+
+    if let Err(e) = run(config) {
+        println!("Application error: {e}");
+        process::exit(1);
+    }
+}
+```
+
+### 3.1.6 分离逻辑代码到库包
+
+- 首先，创建一个`src/lib.rs`，将所有非`main`函数移动到其中：
+
+```rust
+use std::error::Error;
+use std::fs;
+
+pub struct Config {
+    pub query: String,
+    pub file_path: String,
+}
+
+impl Config {
+    pub fn build(args: &[String]) -> Result<Config, &'static str> {
+        // --snip--
+    }
+}
+
+pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
+    // --snip--
+}
+
+```
+
+- 然后更改`src/main.rs`中代码：
+
+```rust
+use std::env;
+use std::process;
+
+use grrs::Config;
+
+fn main() {
+    let args: Vec<String> = env::args().collect();
+
+    // 对 build 返回的 `Result` 进行处理
+    let config = Config::build(&args).unwrap_or_else(|err| {
+        println!("Problem parsing arguments: {err}");
+        process::exit(1);
+    });
+
+
+    println!("Searching for '{}'", config.query);
+    println!("In file {}", config.file_path);
+
+    if let Err(e) = grrs::run(config) {
+        println!("Application error: {e}");
+        process::exit(1);
+    }
+}
+
+```
+
+> 很明显，这里的 `grrs::run` 的调用，以及 `Config` 的引入，跟使用其它第三方包已经没有任何区别，也意味着我们成功的将逻辑代码放置到一个独立的库包中，其它包只要引入和调用就行。
+
+
+## 3.2 测试驱动开发
+
+
+
+
+## 3.3 使用环境变量
+
+
+
+
+
+## 3.4 重定向错误信息输出
+
+
+
+## 3.5 使用迭代器改进程序
+
+
+
+## 3.6 使用 crates 重构项目
+
+### 3.6.1 给参数赋予数据类型
 
 - CLI 的参数通常可以自定义其数据类型，例如 `grrs foobar test.txt` 中，`foobar` 是要查找的字符串，`test.txt` 是要查看的文件，在`src/main.rs`中编写：
 
@@ -104,8 +516,7 @@ let args = Cli {        // 手动解析参数
 > 1. 如何处理参数`--pattern="foo"`、`--pattern "foo"`？
 > 2. 如何处理参数`--help`？
 
-
-## 2.3 使用 Clap 解析参数
+### 3.6.2 使用 Clap 解析参数
 
 - 调用`Clap`库是一个不错的方式。它是用于解析 CLI 参数最流行的库。其包括对子命令、shell完成和重要帮助消息的支持。
 
@@ -157,7 +568,7 @@ fn main() {
 - 运行测试`cargo run`、`cargo run -- some-pattern some-file`
 
 
-## 2.4 文件读入
+### 3.6.3 文件读入
 
 - 从打开我们收到的文件开始：
 
@@ -213,7 +624,7 @@ fn main() {
 > 一个想法是使用`aBufReader`替代`read_to_string`
 
 
-## 2.5 错误处理
+### 3.6.4 错误处理
 
 - 如果`read_to_string`返回错误类型`std::io::Error`，需要进行处理：
 
@@ -314,7 +725,7 @@ fn main() -> Result<()>{
 
 ```
 
-## 2.6 信息输出
+### 3.6.5 信息输出
 
 - 打印错误应通过`stderr`完成：
 
@@ -371,20 +782,6 @@ env RUST_LOG=info cargo run --bin output-log
 ```
 
 - `RUST_LOG`是可用于设置日志设置的环境变量的名称，`env_logger`还包含一个构建器，因此可以以编程方式调整这些设置。
-
-
----
-
-# 3 改进工程
-
-## 3.1 增加模块化和错误处理
-
-- 但凡稍微没那么糟糕的程序，都应该具有代码模块化和错误处理，不然连玩具都谈不上。梳理代码后，可以整理出如下四个改进点：
-  1. **单一庞大的函数**。对于`grrs`而言，`main`函数执行两个任务：解析命令行参数和读取文件。但随着代码增加，其承载的功能也将快速增加。从工程角度来看，一个函数尽量才分出更小的功能单元，便于阅读和维护。
-  2. **配置变量散乱**。当前`main`函数中的变量独立存在，可能被整个程序访问。我们可以将其整合进结构体中。
-  3. **细化错误提示**。
-
-
 
 ---
 

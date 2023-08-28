@@ -1,25 +1,24 @@
-#![allow(unused)]
-use clap::{Parser, parser::Indices};
-use anyhow::{Context, Result};
+use std::env;
+use std::process;
 
-// 在文件中搜索字符串并显示包含该字符串的行
-#[derive(Parser)]
-struct Cli {
-    pattern: String,            // 要查找的字符串
-    path: std::path::PathBuf,   // 要查看的文件
-}
+use grrs::Config;
 
-fn main() -> Result<()>{
-    // 自动解析参数到 Cli
-    let args = Cli::parse(); 
-    // 读取文件
-    let content = std::fs::read_to_string(&args.path).with_context(|| format!("could not read fine `{}`!", args.path.to_string_lossy()))?;
-    // 打印文件中含有目标值的每一行
-    for line in content.lines() {
-        if line.contains(&args.pattern) {
-            println!("{}", line);
-        }
+fn main() {
+    let args: Vec<String> = env::args().collect();
+
+    // 对 build 返回的 `Result` 进行处理
+    let config = Config::build(&args).unwrap_or_else(|err| {
+        println!("Problem parsing arguments: {err}");
+        process::exit(1);
+    });
+
+
+    println!("Searching for '{}'", config.query);
+    println!("In file {}", config.file_path);
+
+    if let Err(e) = grrs::run(config) {
+        println!("Application error: {e}");
+        process::exit(1);
     }
-    Ok(())
-
 }
+
