@@ -469,16 +469,293 @@ fn main() {
 
 ## 3.2 测试驱动开发
 
+> 在之前的章节中，我们完成了对项目结构的重构，并将进入逻辑代码编程的环节，但在此之前，我们需要先编写一些测试代码，也是最近颇为流行的测试驱动开发模式（TDD, Test Driven Development）：
+> 1. 编写一个注定失败的测试，并且失败的原因和你指定的一样
+> 2. 编写一个成功的测试
+> 3. 编写你的逻辑代码，直到通过测试
+> 
+> 这三个步骤将在我们的开发过程中不断循环，直到所有的代码都开发完成并成功通过所有测试。
 
+### 3.2.1 注定失败的测试用例
+- 既然要添加测试，那之前的 `println!` 语句将没有大的用处，毕竟 `println!` 存在的目的就是为了让我们看到结果是否正确，而现在测试用例将取而代之。
+- 接下来，在`lib.rs`文件中，添加`tests`模块和`test`函数：
+
+```rust
+// in lib.rs
+pub fn search<'a>(query: &str, contents: &'a str) -> Vec<&'a str> {
+    vec![]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn one_result() {
+        let query = "duct";
+        let contents = "\
+Rust:
+safe, fast, productive.
+Pick three.";
+
+        assert_eq!(vec!["safe, fast, productive."], search(query, contents));
+    }
+}
+
+```
+
+- 先添加一个简单的 `search` 函数实现，非常简单粗暴的返回一个空的数组，显而易见测试用例将成功通过，真是一个居心叵测的测试用例！
+- 注意这里生命周期 'a 的使用，之前的章节有详细介绍，不太明白的同学可以回头看看。
+- 它会失败！
+
+
+### 3.2.2 务必成功的测试用例
+
+- 接着就是测试驱动的第二步：编写注定成功的测试。当然，前提条件是实现我们的 `search` 函数。它包含以下步骤：
+  1. 遍历迭代 contents 的每一行
+  2. 检查该行内容是否包含我们的目标字符串
+  3. 若包含，则放入返回值列表中，否则忽略
+  4. 返回匹配到的返回值列表
+
+#### a 遍历迭代每一行
+
+- Rust 提供了一个很便利的 lines 方法将目标字符串进行按行分割：
+
+```rust
+// in lib.rs
+pub fn search<'a>(query: &str, contents: &'a str) -> Vec<&'a str> {
+    for line in contents.lines() {
+        // do something with line
+    }
+}
+```
+
+- 这里的 `lines` 返回一个迭代器，关于迭代器在后续章节会详细讲解，现在只要知道 `for` 可以遍历取出迭代器中的值即可。
+
+#### b 在每一行中查询目标字符串
+
+- 与之前的 `lines` 函数类似，Rust 的字符串还提供了 `contains` 方法，用于检查 `line` 是否包含待查询的 `query`：
+
+```rust
+// in lib.rs
+pub fn search<'a>(query: &str, contents: &'a str) -> Vec<&'a str> {
+    for line in contents.lines() {
+        if line.contains(query) {
+            // do something with line
+        }
+    }
+}
+```
+
+#### c 存储匹配到的结果
+
+- 创建一个 `Vec` 动态数组，然后将查询到的每一个 `line` 推进数组中即可：
+
+```rust
+// in lib.rs
+pub fn search<'a>(query: &str, contents: &'a str) -> Vec<&'a str> {
+    let mut results = Vec::new();
+
+    for line in contents.lines() {
+        if line.contains(query) {
+            results.push(line);
+        }
+    }
+
+    results
+}
+```
+
+- 至此，`search` 函数已经完成了既定目标，为了检查功能是否正确，运行下我们之前编写的测试用例。
+
+#### d 在 run 函数中调用 search 函数
+
+- 如下：
+
+```rust
+// in src/lib.rs
+pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
+    let contents = fs::read_to_string(config.file_path)?;
+
+    for line in search(&config.query, &contents) {
+        println!("{line}");
+    }
+
+    Ok(())
+}
+```
+
+- 运行：
+
+```shell
+cargo run -- frog poem.txt              # 1
+cargo run -- body poem.txt              # 3
+cargo run -- monomorphization poem.txt  # 0
+```
 
 
 ## 3.3 使用环境变量
 
+- 在上一章节中，留下了一个悬念，该如何实现用户控制的大小写敏感，其实答案很简单，你在其它程序中肯定也遇到过不少，例如如何控制 panic 后的栈展开？ Rust 提供的解决方案是通过命令行参数来控制：
+
+```rust
+RUST_BACKTRACE=1 cargo run
+```
+
+- 与之类似，我们也可以使用环境变量来控制大小写敏感，例如：
+
+```rust
+IGNORE_CASE=1 cargo run -- to poem.txt
+```
+
+### 3.3.1 编写大小写不敏感的测试用例
+
+- 还是遵循之前的规则：测试驱动，这次是对一个新的大小写不敏感函数进行测试 `search_case_insensitive`：
+
+#### a 注定失败的用例
+
+- 首先编写一个注定失败的用例：
+
+```rust
+// in src/lib.rs
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn case_sensitive() {
+        let query = "duct";
+        let contents = "\
+Rust:
+safe, fast, productive.
+Pick three.
+Duct tape.";
+
+        assert_eq!(vec!["safe, fast, productive."], search(query, contents));
+    }
+
+    #[test]
+    fn case_insensitive() {
+        let query = "rUsT";
+        let contents = "\
+Rust:
+safe, fast, productive.
+Pick three.
+Trust me.";
+
+        assert_eq!(
+            vec!["Rust:", "Trust me."],
+            search_case_insensitive(query, contents)
+        );
+    }
+}
+
+```
+
+#### b 成功的用例
+
+- 这里新增了一个 `case_insensitive` 测试用例，并对`search_case_insensitive` 进行了测试，实现其函数：
+
+```rust
+pub fn search_case_insensitive<'a>(
+    query: &str,
+    contents: &'a str,
+) -> Vec<&'a str> {
+    let query = query.to_lowercase();
+    let mut results = Vec::new();
+
+    for line in contents.lines() {
+        if line.to_lowercase().contains(&query) {
+            results.push(line);
+        }
+    }
+
+    results
+}
+```
+
+- 跟之前一样，但是引入了一个新的方法 `to_lowercase`，它会将 `line` 转换成全小写的字符串。`query` 现在是 `String` 类型，而不是之前的 `&str`，因为 `to_lowercase` 返回的是 `String`。
 
 
+#### c 在 run 中调用
+
+- 最后一步，在 `run` 中调用新的搜索函数。但是在此之前，要新增一个配置项，用于控制是否开启大小写敏感。
+
+```rust
+// in lib.rs
+pub struct Config {
+    pub query: String,
+    pub file_path: String,
+    pub ignore_case: bool,
+}
+```
+
+- 修改`run`中开启敏感检查：
+
+```rust
+pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
+    let contents = fs::read_to_string(config.file_path)?;
+
+    let results = if config.ignore_case {
+        search_case_insensitive(&config.query, &contents)
+    } else {
+        search(&config.query, &contents)
+    };
+
+    for line in results {
+        println!("{line}");
+    }
+
+    Ok(())
+}
+
+```
+
+- 现在的问题来了，该如何控制这个配置项呢。这个就要借助于章节开头提到的环境变量，好在 Rust 的 `env` 包提供了相应的方法。
+
+```rust
+use std::env;
+// --snip--
+
+impl Config {
+    pub fn build(args: &[String]) -> Result<Config, &'static str> {
+        if args.len() < 3 {
+            return Err("not enough arguments");
+        }
+
+        let query = args[1].clone();
+        let file_path = args[2].clone();
+
+        let ignore_case = env::var("IGNORE_CASE").is_ok();
+
+        Ok(Config {
+            query,
+            file_path,
+            ignore_case,
+        })
+    }
+}
+
+```
+
+- `env::var` 没啥好说的，倒是 `is_ok` 值得说道下。该方法是 `Result` 提供的，用于检查是否有值，有就返回 `true`，没有则返回 `false`，刚好完美符合我们的使用场景，因为我们并不关心 `Ok<T>` 中具体的值。
+
+- 运行：
+
+```shell
+cargo run -- to poem.txt
+IGNORE_CASE=1 cargo run -- to poem.txt
+```
+
+- 大小写不敏感后，查询到的内容明显多了很多，也很符合我们的预期。
+
+> 小作业：
+> 同时使用命令行参数和环境变量的方式来控制大小写不敏感，其中环境变量的优先级更高，也就是两个都设置的情况下，优先使用环境变量的设置。
 
 
 ## 3.4 重定向错误信息输出
+
+
 
 
 
