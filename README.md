@@ -803,8 +803,147 @@ cargo run -- to poem.txt > output.txt
 - 至此，简易搜索程序 `grrs` 已经基本完成，下一章节将使用迭代器进行部分改进。
 
 
-
 ## 3.5 使用迭代器改进程序
+
+- 在之前的 `minigrep` 中，功能虽然已经 ok，但是一些细节上还值得打磨下，下面一起看看如何使用迭代器来改进 `Config::build` 和 `serach` 的实现。
+
+### 3.5.1 移除 clone 的使用
+
+- 虽然之前有讲过为什么这里可以使用 `clone`，但是也许总有同学心有芥蒂，毕竟程序员嘛，都希望代码处处完美，而不是丑陋的处处妥协。
+
+- 之前的代码大致长这样，两行 clone 着实有点啰嗦，好在，在学习完迭代器后，我们知道了 `build` 函数实际上可以直接拿走迭代器的所有权，而不是去借用一个数组切片 `&[String]`。
+
+```rust
+impl Config {
+    pub fn build(args: &[String]) -> Result<Config, &'static str> {
+        if args.len() < 3 {
+            return Err("not enough arguments");
+        }
+
+        let query = args[1].clone();
+        let file_path = args[2].clone();
+
+        let ignore_case = env::var("IGNORE_CASE").is_ok();
+
+        Ok(Config {
+            query,
+            file_path,
+            ignore_case,
+        })
+    }
+}
+```
+
+### 3.5.2 直接使用返回的迭代器
+
+- 在之前的实现中，我们的 `args` 是一个动态数组:
+
+```rust
+fn main() {
+    let args: Vec<String> = env::args().collect();
+
+    let config = Config::build(&args).unwrap_or_else(|err| {
+        eprintln!("Problem parsing arguments: {err}");
+        process::exit(1);
+    });
+    // --snip--
+}
+```
+
+- 当时还提到了 `collect` 方法的使用，相信大家学完迭代器后，对这个方法会有更加深入的认识。
+- 现在呢，无需数组了，直接传入迭代器即可：
+
+```rust
+fn main() {
+    let config = Config::build(env::args()).unwrap_or_else(|err| {
+        eprintln!("Problem parsing arguments: {err}");
+        process::exit(1);
+    });
+    // --snip--
+}
+```
+
+- 原因是 `env::args` 可以直接返回一个迭代器，再作为 `Config::build` 的参数传入。改写`lib.rs/build`方法：
+
+```rust
+impl Config {
+    pub fn build(
+        mut args: impl Iterator<Item = String>,
+    ) -> Result<Config, &'static str> {
+        // --snip--
+```
+
+- 为了可读性和更好的通用性，这里的 `args` 类型并没有使用本身的 `std::env::Args` ，而是使用了特征约束的方式来描述 `impl Iterator<Item = String>`，这样意味着 arg 可以是任何实现了 `String` 迭代器的类型。
+
+> 注意，由于迭代器的所有权已经转移到 `build` 内，因此可以直接对其进行修改，这里加上了 `mut` 关键字。
+
+### 3.5.3 移除数组索引的使用
+
+- 数组索引会越界，为了安全性和简洁性，使用 `Iterator` 特征自带的 `next` 方法是一个更好的选择:
+
+```rust
+impl Config {
+    pub fn build(
+        mut args: impl Iterator<Item = String>,
+    ) -> Result<Config, &'static str> {
+        // 第一个参数是程序名，由于无需使用，因此这里直接空调用一次
+        args.next();
+
+        let query = match args.next() {
+            Some(arg) => arg,
+            None => return Err("Didn't get a query string"),
+        };
+
+        let file_path = match args.next() {
+            Some(arg) => arg,
+            None => return Err("Didn't get a file path"),
+        };
+
+        let ignore_case = env::var("IGNORE_CASE").is_ok();
+
+        Ok(Config {
+            query,
+            file_path,
+            ignore_case,
+        })
+    }
+}
+```
+
+- 上面使用了迭代器和模式匹配的代码，看上去是不是很 Rust？
+
+
+### 3.5.4 使用迭代器适配器让代码更简洁
+
+- 为了帮大家更好的回忆和对比，之前的 `search` 长这样：
+```rust
+// in lib.rs
+pub fn search<'a>(query: &str, contents: &'a str) -> Vec<&'a str> {
+    let mut results = Vec::new();
+
+    for line in contents.lines() {
+        if line.contains(query) {
+            results.push(line);
+        }
+    }
+    results
+}
+```
+
+- 引入了迭代器后，就连古板的 `search` 函数也可以变得更 `rusty` 些:
+
+```rust
+pub fn search<'a>(query: &str, contents: &'a str) -> Vec<&'a str> {
+    contents
+        .lines()
+        .filter(|line| line.contains(query))
+        .collect()
+}
+```
+
+- Let's Rock，这种一行到底的写法有时真的让人沉迷。
+
+
 
 
 
@@ -944,6 +1083,7 @@ fn main() {
 > 它将整个文件读入内存
 > 找到一种优化方法
 > 一个想法是使用`aBufReader`替代`read_to_string`
+
 
 
 ### 3.6.4 错误处理
